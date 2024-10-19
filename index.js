@@ -35,18 +35,17 @@ async function run() {
     });
 
     // Add Job
-    // app.post("/addJob", async (req, res) => {
-    //   const jobData = req.body;
-    //   const result = await jobs.insertOne(jobData);
-    //   res.send(result);
-    //   console.log(jobData);
-    // });
+    app.post("/addJob", async (req, res) => {
+      const jobData = req.body;
+      const result = await jobs.insertOne(jobData);
+      res.send(result);
+      console.log(jobData);
+    });
 
     // Add Candidate Email
     app.post("/addEmail", async (req, res) => {
       const email = req.body;
       const result = await emails.insertOne(email);
-      //   console.log(email);
       res.send(result);
     });
 
