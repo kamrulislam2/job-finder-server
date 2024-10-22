@@ -21,22 +21,22 @@ const corsOptions = {
   origin: "*",
   credentials: true,
   optionSuccessStatus: 200,
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 };
 app.use(cors(corsOptions));
 app.use(express.json());
 
 // Configure Multer for file uploads (PDF resume)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => {
+//     cb(null, "uploads/");
+//   },
+//   filename: (req, file, cb) => {
+//     cb(null, Date.now() + path.extname(file.originalname));
+//   },
+// });
 
-const upload = multer({ storage: storage });
+// const upload = multer({ storage: storage });
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -59,7 +59,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const categoryList = client.db("jobFinder").collection("categoryList");
     const jobs = client.db("jobFinder").collection("jobs");
@@ -85,61 +85,92 @@ async function run() {
       res.send(result);
     });
 
-    // Add Candidate Email
-    app.post("/appliedJob", upload.single("resume"), async (req, res) => {
-      const { name, email, phone, jobTitle, companyName, yourself } = req.body;
-      const resumePath = req.file.path; // Path to the uploaded resume
+    // Get email about candidate application
+    // app.post("/appliedJob", upload.single("resume"), async (req, res) => {
+    //   const { name, email, phone, jobTitle, companyName, yourself } = req.body;
+    //   const resumePath = req.file.path; // Path to the uploaded resume
 
-      // Set up email options
-      const mailOptions = {
-        from: email, // Applicant's email
+    //   // Set up email options
+    //   const mailOptions = {
+    //     from: email, // Applicant's email
+    //     to: process.env.GMAIL_USER, // Your Gmail account
+    //     subject: `New Application for ${jobTitle} at ${companyName}`,
+    //     text: `
+    //   A new job application has been submitted:
+
+    //   Name: ${name}
+    //   Email: ${email}
+    //   Phone: ${phone}
+    //   Job Title: ${jobTitle}
+    //   Company Name: ${companyName}
+    //   About Myself: ${yourself}
+
+    //   Resume attached.
+    // `,
+    //     attachments: [
+    //       {
+    //         filename: req.file.originalname,
+    //         path: resumePath, // The uploaded resume PDF file
+    //       },
+    //     ],
+    //   };
+
+    //   transporter.sendMail(mailOptions, async (error, info) => {
+    //     if (error) {
+    //       console.error("Error sending email:", error);
+    //       return res.status(500).send("Error sending email");
+    //     }
+
+    //     // Delete the uploaded resume file after sending the email
+    //     if (fs.existsSync(resumePath)) {
+    //       fs.unlink(resumePath, (err) => {
+    //         if (err) {
+    //           console.error("Error deleting file:", err);
+    //         } else {
+    //           console.log("File deleted successfully");
+    //         }
+    //       });
+    //     } else {
+    //       console.log("File does not exist:", resumePath);
+    //     }
+
+    //     console.log("Email sent:", info.response);
+    //     const result = await emails.insertOne({ email: email });
+    //     res.status(200).send(result);
+    //   });
+
+    //   // jobApplicationInfo(jobData);
+    // });
+
+    app.post("/appliedJob", async (req, res) => {
+      const applicationData = req.body;
+
+      transporter.sendMail({
+        from: applicationData.email, // Applicant's email
         to: process.env.GMAIL_USER, // Your Gmail account
-        subject: `New Application for ${jobTitle} at ${companyName}`,
+        subject: `New Application for ${applicationData.jobTitle} at ${applicationData.companyName}`,
         text: `
-      A new job application has been submitted:
+            A new job application has been submitted:
 
-      Name: ${name}
-      Email: ${email}
-      Phone: ${phone}
-      Job Title: ${jobTitle}
-      Company Name: ${companyName}
-      About Myself: ${yourself}
-
-      Resume attached.
-    `,
+            Name: ${applicationData.name}
+            Email: ${applicationData.email}
+            Phone: ${applicationData.phone}
+            Job Title: ${applicationData.jobTitle}
+            Company Name: ${applicationData.companyName}
+            About Myself: ${applicationData.yourself}
+            `,
         attachments: [
           {
-            filename: req.file.originalname,
-            path: resumePath, // The uploaded resume PDF file
+            filename: `${applicationData.name}_CV.pdf`,
+            path: applicationData?.resume,
+            contentType: "application/pdf",
           },
         ],
-      };
-
-      transporter.sendMail(mailOptions, async (error, info) => {
-        if (error) {
-          console.error("Error sending email:", error);
-          return res.status(500).send("Error sending email");
-        }
-
-        // Delete the uploaded resume file after sending the email
-        if (fs.existsSync(resumePath)) {
-          fs.unlink(resumePath, (err) => {
-            if (err) {
-              console.error("Error deleting file:", err);
-            } else {
-              console.log("File deleted successfully");
-            }
-          });
-        } else {
-          console.log("File does not exist:", resumePath);
-        }
-
-        console.log("Email sent:", info.response);
-        const result = await emails.insertOne({ email: email });
-        res.status(200).send(result);
       });
-
-      // jobApplicationInfo(jobData);
+      const result = await emails.insertOne({
+        email: applicationData.email,
+      });
+      res.send(result);
     });
 
     app.get("/categoryList", async (req, res) => {
