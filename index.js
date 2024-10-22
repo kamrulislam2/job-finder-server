@@ -2,6 +2,10 @@ const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const send = require("send");
+const nodemailer = require("nodemailer");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
@@ -9,6 +13,26 @@ const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Configure Multer for file uploads (PDF resume)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage: storage });
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GMAIL_USER, // Gmail account
+    pass: process.env.GMAIL_PASS, // Gmail password
+  },
+});
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.towmtg1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -47,6 +71,63 @@ async function run() {
       const email = req.body;
       const result = await emails.insertOne(email);
       res.send(result);
+    });
+
+    // Add Candidate Email
+    app.post("/appliedJob", upload.single("resume"), async (req, res) => {
+      const { name, email, phone, jobTitle, companyName, yourself } = req.body;
+      const resumePath = req.file.path; // Path to the uploaded resume
+
+      // Set up email options
+      const mailOptions = {
+        from: email, // Applicant's email
+        to: process.env.GMAIL_USER, // Your Gmail account
+        subject: `New Application for ${jobTitle} at ${companyName}`,
+        text: `
+      A new job application has been submitted:
+
+      Name: ${name}
+      Email: ${email}
+      Phone: ${phone}
+      Job Title: ${jobTitle}
+      Company Name: ${companyName}
+      About Myself: ${yourself}
+
+      Resume attached.
+    `,
+        attachments: [
+          {
+            filename: req.file.originalname,
+            path: resumePath, // The uploaded resume PDF file
+          },
+        ],
+      };
+
+      transporter.sendMail(mailOptions, async (error, info) => {
+        if (error) {
+          console.error("Error sending email:", error);
+          return res.status(500).send("Error sending email");
+        }
+
+        // Delete the uploaded resume file after sending the email
+        if (fs.existsSync(resumePath)) {
+          fs.unlink(resumePath, (err) => {
+            if (err) {
+              console.error("Error deleting file:", err);
+            } else {
+              console.log("File deleted successfully");
+            }
+          });
+        } else {
+          console.log("File does not exist:", resumePath);
+        }
+
+        console.log("Email sent:", info.response);
+        const result = await emails.insertOne({ email: email });
+        res.status(200).send(result);
+      });
+
+      // jobApplicationInfo(jobData);
     });
 
     app.get("/categoryList", async (req, res) => {
