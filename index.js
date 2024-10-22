@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
-const send = require("send");
 const nodemailer = require("nodemailer");
 const multer = require("multer");
 const fs = require("fs");
@@ -11,7 +10,20 @@ require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+// app.use(
+//   cors({
+//     origin: "*", // Your React app's URL
+//     methods: ["GET", "POST", "PUT", "DELETE"], // Allowed methods
+//   })
+// );
+
+const corsOptions = {
+  origin: "*",
+  credentials: true,
+  optionSuccessStatus: 200,
+  methods: ["GET", "POST", "PUT", "DELETE"],
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Configure Multer for file uploads (PDF resume)
